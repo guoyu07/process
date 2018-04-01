@@ -394,7 +394,7 @@ class process
                 // 通过信号强制停止；
                 if (!$this->master_pid) {
                     $this->stop();
-                    echo ' process killed' . PHP_EOL;
+                    echo 'process killed' . PHP_EOL;
                 }
                 break;
             case SIGCHLD :
@@ -441,8 +441,16 @@ class process
                         {
                             $param = '['.join(',',$v[1]).']';
                         }
-                        $ref = new ReflectionClass($v[0][0]);
-                        $this->callbacks[] = ['callback'=>$v , 'title'=>"{$ref->getName()}->{$v[0][1]}{$param}"];
+                        if(is_string($v[0][0]))
+                        {
+                            $name = $v[0][0];
+                        }
+                        else
+                        {
+                            $ref = new ReflectionClass($v[0][0]);
+                            $name = $ref->getName();
+                        }
+                        $this->callbacks[] = ['callback'=>$v , 'title'=>"{$name}{$param}"];
                     }
                     else if(is_callable($v[0]))// 例如：[function ($a) {  echo 'TEST!anmous!!' . microtime(true) . PHP_EOL; sleep(1); },[1]]
                     {
@@ -454,8 +462,16 @@ class process
                         {
                             $param = '['.join(',',$v[1]).']';
                         }
-                        $ref = new ReflectionClass($v[0]);
-                        $this->callbacks[] = [ 'callback'=>$v,'title'=>"{$ref->getName()}{$param}"];
+                        if(is_string($v[0]))
+                        {
+                            $name  = $v[0];
+                        }
+                        else
+                        {
+                            $ref = new ReflectionClass($v[0]);
+                            $name = $ref->getName() ;
+                        }
+                        $this->callbacks[] = [ 'callback'=>$v,'title'=>"{$name}{$param}"];
                     }
                     else if(is_object($v[0])) // 例如: [new test(), 'op'],
                     {
@@ -577,7 +593,7 @@ class process
             {
                 $this->stop_by_exception = 1 ;
                 $this->tunStop();
-                $this->wait();
+                $this->wait(1);
                 $this->log("【主进程异常停止】,进程pid:{$this->pid},已终止所有子进程，可能的错误信息：[".join(',',(array)error_get_last()).'],trace 信息：'.json_encode(debug_backtrace()));
             }
             unlink ($this->pid_file ) ;
