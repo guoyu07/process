@@ -1,0 +1,29 @@
+{
+  "name": "phpth/process",
+  "description": "简单好用的进程控制类",
+  "type": "lib",
+  "homepage": "https://github.com/phpth/process",
+  "license": "MIT",
+  "suggest":{
+    "process/process":"建议 php版本最好在5.5以上最佳版本为7.1",
+    "process/fileShare":"多进程下使用此类请先调用lock方法，操作完成之后调用unlock方法"
+  },
+  "keywords": [
+    "process",
+    "share",
+    "multi process"
+  ],
+  "authors": [
+    {
+      "name": "luajia",
+      "email": "843960877@qq.com"
+    }
+  ],
+  "minimum-stability": "stable",
+  "require": {
+    "php": ">=5.4.0"
+  },
+  "autoload": {
+    "classmap": ["src/"]
+  }
+}
