@@ -1,6 +1,8 @@
 <?php
 namespace phpth\process;
+
 use Exception;
+
 class fileShare
 {
     /**
@@ -50,10 +52,10 @@ class fileShare
         else
         {
             def:
-            $file_path = 'file_share.shm';
+            $file_path = 'file.j';
         }
 
-        $this->file_path = "{$root_path}/file_function/{$file_path}";
+        $this->file_path = "{$root_path}/file/{$file_path}";
         $dir = dirname($this->file_path) ;
         if(!is_dir($dir))
         {
@@ -78,7 +80,7 @@ class fileShare
     }
 
     /**
-     * 这只共享值
+     * 设置共享值
      * @param $key
      * @param $value
      * @return bool
@@ -126,7 +128,7 @@ class fileShare
      * @param $key
      * @return bool|mixed|string
      */
-    public function unset ($key)
+    public function del ($key)
     {
         $data = $this->read() ;
         if($data ===false)  return false ;

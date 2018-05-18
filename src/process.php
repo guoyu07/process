@@ -1,8 +1,23 @@
 <?php
+// +----------------------------------------------------------------------
+// | phpth\process
+// +----------------------------------------------------------------------
+// | Copyright (c) 2018
+// +----------------------------------------------------------------------
+// | Licensed MIT
+// +----------------------------------------------------------------------
+// | Author: luajia
+// +----------------------------------------------------------------------
+
 namespace phpth\process;
+
 use ReflectionClass;
 use Exception;
-function_exists('pcntl_async_signals')?pcntl_async_signals(true):define('DISPATCH_SIGNAl', 1);
+
+/**
+ * Class process
+ * @package phpth\process
+ */
 class process
 {
     /**
@@ -10,12 +25,6 @@ class process
      * @var int
      */
     public static $new_count = 0;
-
-    /**
-     * master pid 文件位置 ;
-     * @var
-     */
-    public $pid_file ;
 
     /**
      * 进程数量
@@ -100,6 +109,12 @@ class process
     protected $master_pid ;
 
     /**
+     * 共享存储操作对象
+     * @object fileShare
+     */
+    protected $share ;
+
+    /**
      * 信号对照表
      * @var array
      */
@@ -110,6 +125,11 @@ class process
         21 => 'SIGTTIN', 22 => 'SIGTTOU', 23 => 'SIGURG', 24 => 'SIGXCPU', 25 => 'SIGXFSZ', 26 => 'SIGVTALRM',
         27 => 'SIGPROF', 28 => 'SIGWINCH', 29 => 'SIGIO', 30 => 'SIGPWR', 31 => 'SIGSYS',
     ];
+
+    /**
+     * pid 信息文件
+     */
+    const MASTER_PID_FILE = '/process/master_pid.j';
 
     /**
      * 初始化一些必要参数
@@ -127,31 +147,104 @@ class process
         if (version_compare(PHP_VERSION, '5.4.0') < 0) throw new Exception('请保证PHP版本在5.4或以上!');
         if (stripos(PHP_SAPI, 'cli') === false) throw new Exception('请在cli模式下运行!');
         // 运行时文件
-        $this->process_run_time_path = $process_run_time_path ? : __DIR__.'/run' ;
+        $this->process_run_time_path = rtrim($process_run_time_path ? : __DIR__.'/run' ,'/\\');
         if (!is_dir($this->process_run_time_path) && !mkdir($this->process_run_time_path, 0777, true)) throw new Exception('无法创建运行时目录');
         $this->process_run_time_path = realpath($this->process_run_time_path);
         if (!$this->process_run_time_path) throw new Exception('运行时目录定位错误');
         //初始化状态量
-        $this->pid_file = "{$this->process_run_time_path}/master.pid";
+        $this->process_num = $process_num > 0 ? $process_num : 1;
+        $this->share = new fileShare(self::MASTER_PID_FILE);
         $this->pid      = getmypid();
         $this->master_pid = 0 ;
-        if (!file_put_contents($this->pid_file, $this->pid)) throw new Exception('无法写入 pid 信息!');
+        if (!$this->share->lock()|| !$this->share->set($this->pid, $this->process_num)) throw new Exception('无法写入 pid 信息!');
+        $this->share->unlock();
         // 基础设施
-        $this->process_num = $process_num > 0 ? $process_num : 1;
         $this->runFormat($callbacks);
         self::$new_count             += 1;
-        $this->process_title         = "{$process_title} " . (self::$new_count>1?self::$new_count-1:'');
+        $this->process_title         = "{$process_title}" . (self::$new_count>1?' '.(self::$new_count-1):'');
         $this->memory_limit          = $memory_limit;
         $this->process_log_file      = "{$this->process_run_time_path}/{$this->process_title}.log";
         $this->full_process_no_list  = range(0, $this->process_num - 1);
         if(function_exists('cli_set_process_title'))cli_set_process_title("{$this->process_title}: master");
+        function_exists('pcntl_async_signals')?pcntl_async_signals(true):define('DISPATCH_SIGNAl', 1);
     }
 
+    public function __destruct()
+    {
+        if($this->master_pid)
+        {
+            if(is_resource($this->file_handle))
+            {
+                flock($this->file_handle, LOCK_UN);
+                fclose($this->file_handle);
+            }
+            die() ;
+        }
+        else
+        {
+            if(count($this->process_list) > 0)// 主进程异常停止
+            {
+                $this->stop_by_exception = 1 ;
+                $this->tunStop();
+                $this->wait(1);
+                $this->log("【主进程异常停止】,进程pid:{$this->pid},已终止所有子进程，可能的错误信息：[".join(',',(array)error_get_last()).'],trace 信息：'.json_encode(debug_backtrace()));
+            }
+            $this->share->lock();
+            $this->share->del($this->pid);
+            $this->share->unlock();
+            if(is_resource($this->file_handle))
+            {
+                flock($this->file_handle, LOCK_UN);
+                fclose($this->file_handle);
+            }
+        }
+    }
+
+    /**
+     * 强行停止程序
+     */
+    public function stop()
+    {
+        if($this->process_list)
+        {
+            foreach($this->process_list as $k=>$v)
+            {
+                if($v>0)
+                {
+                    posix_kill($v ,SIGKILL) ;
+                    unset($this->process_list[$k]);
+                }
+            }
+        }
+    }
+
+    /**
+     * 发送停止信号;
+     */
+    public function tunStop()
+    {
+        if(is_array($this->process_list))
+        {
+            foreach($this->process_list as $v)
+            {
+                posix_kill($v, SIGINT);
+            }
+        }
+    }
+
+    /**
+     * @param float $sleep
+     */
+    public function sleep($sleep)
+    {
+        usleep((int)($sleep*1000000));
+    }
 
     /**
      * @param int $times 运行次数
-     * @param bool $sync 是否同步
+     * @param bool $sync 是否同步 (未来特性)
      * @return bool
+     * @throws Exception
      */
     public final function run( $times = 0 ,  $sync=true)
     {
@@ -181,12 +274,16 @@ class process
     }
 
     /**
-     * 子进程
      * @param $process_title
      * @param $callback
+     * @throws Exception
      */
     protected function childRun($process_title,$callback)
     {
+        if(!isset($callback[0])|| !isset($callback[1]))
+        {
+            throw new Exception('进程执行回调格式错误!');
+        }
         $this->registerHandle();
         $this->master_pid = $this->pid ;
         $this->pid = getmypid();
@@ -331,38 +428,6 @@ class process
     }
 
     /**
-     * 强行停止程序
-     */
-    public function stop()
-    {
-        if($this->process_list)
-        {
-            foreach($this->process_list as $k=>$v)
-            {
-                if($v>0)
-                {
-                    posix_kill($v ,SIGKILL) ;
-                    unset($this->process_list[$k]);
-                }
-            }
-        }
-    }
-
-    /**
-     * 发送停止信号;
-     */
-    public function tunStop()
-    {
-        if(is_array($this->process_list))
-        {
-            foreach($this->process_list as $v)
-            {
-                posix_kill($v, SIGINT);
-            }
-        }
-    }
-
-    /**
      * 信号注册
      */
     protected function registerHandle()
@@ -381,7 +446,6 @@ class process
     public function signalHandle($signal)
     {
         switch ($signal) {
-            case SIGINT:
             case SIGHUP:
             case SIGQUIT:
                 $this->stop_by_signal = 1;
@@ -389,6 +453,7 @@ class process
                     $this->tunStop();
                 }
                 break;
+            case SIGINT:
             case SIGTERM:
                 $this->stop_by_signal = 1;
                 // 通过信号强制停止；
@@ -399,14 +464,6 @@ class process
                 break;
             case SIGCHLD :
         }
-    }
-
-    /**
-     * @param float $sleep
-     */
-    public function sleep($sleep)
-    {
-        usleep((int)($sleep*1000000));
     }
 
     /**
@@ -573,35 +630,5 @@ class process
                 $string = '未知原因 ，可能是退出状态超过范围	exit -1	exit只接受0 ~ 255范围的退出码';
         }
         return $string ;
-    }
-
-
-    public function __destruct()
-    {
-        if($this->master_pid)
-        {
-            if(is_resource($this->file_handle))
-            {
-                flock($this->file_handle, LOCK_UN);
-                fclose($this->file_handle);
-            }
-            die() ;
-        }
-        else
-        {
-            if(count($this->process_list) > 0)// 主进程异常停止
-            {
-                $this->stop_by_exception = 1 ;
-                $this->tunStop();
-                $this->wait(1);
-                $this->log("【主进程异常停止】,进程pid:{$this->pid},已终止所有子进程，可能的错误信息：[".join(',',(array)error_get_last()).'],trace 信息：'.json_encode(debug_backtrace()));
-            }
-            unlink ($this->pid_file ) ;
-            if(is_resource($this->file_handle))
-            {
-                flock($this->file_handle, LOCK_UN);
-                fclose($this->file_handle);
-            }
-        }
     }
 }
