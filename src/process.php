@@ -295,7 +295,7 @@ class process
         try{
             $loop_entry = $this->times?:true;
             do{
-                call_user_func_array($callback[0],$callback[0]);
+                call_user_func_array($callback[0],$callback[1]);
                 if($this->signal_dispatch) pcntl_signal_dispatch();
                 $memory = round(memory_get_usage()/1024/1024 ,2);
                 if($memory > $this->memory_limit)
@@ -524,7 +524,7 @@ class process
      */
     protected function checkCall($call)
     {
-        if(empty($call[0]) || !isset($call[1]) )
+        if(empty($call[0]) || !isset($call[1]) || !is_array($call[1]))
         {
             throw new Exception('子进程执行格式错误！');
         }

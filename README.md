@@ -4,10 +4,20 @@
 ```bash
 composer require phpth/process
 ```
+>说明
+
+信号处理：<br />
+ 父进程和子进程都默认了对部分信号的处理，分别是SIGTERM, SIGQUIT, SIGINT, SIGCHLD，SIGHUP, SIGTSTP 
+ <br />
+ 收到 SIGTERM 和 SIGSTP 信号主进程会强制kill掉子进程，
+ 收到 SIGQUIT, SIGINT, SIGCHLD，SIGHUP 信号则会等待子进程本次任务完结后自动退出
+ 
+ 调用参数：
+ 
  process类的第三个参数可以控制进程执行过程的信息输出模式，默认为false，代表直接输出到屏幕<br />
  如果传入文件路径则写入文件内，目录和文件不存在则会新建<br />
  如果传入是目录，则会以当前的主进程进程标题为名文件名写入
-
+#
 >使用
 ```php
 <?php
