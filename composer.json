@@ -1,0 +1,29 @@
+{
+  "name": "phpth/process",
+  "description": "简便封装的多进程实现",
+  "type": "lib",
+  "homepage": "https://github.com/phpth/process",
+  "license": "MIT",
+  "suggest":{
+    "process/process":"强制使用7.1及以上版本",
+    "process/fileShare":"一个简单的多进程间通信类，多进程下使用前请先使用lock方法保证数据安全，数据写入完成后调用unlock"
+  },
+  "keywords": [
+    "process",
+    "share",
+    "multi process"
+  ],
+  "authors": [
+    {
+      "name": "luajia",
+      "email": "843960877@qq.com"
+    }
+  ],
+  "minimum-stability": "alpha",
+  "require": {
+    "php": ">=7.1"
+  },
+  "autoload": {
+    "classmap": ["src/"]
+  }
+}
